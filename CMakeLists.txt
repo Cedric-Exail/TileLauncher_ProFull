@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.15)
+project(TileLauncherPro)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+add_executable(TileLauncherPro src/main.cpp src/core/app.cpp src/ui/window.cpp)
+target_link_libraries(TileLauncherPro user32 gdi32 shell32)
