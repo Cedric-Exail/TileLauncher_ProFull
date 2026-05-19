@@ -1,6 +1,13 @@
-cmake_minimum_required(VERSION 3.15)
-project(TileLauncherPro)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
-add_executable(TileLauncherPro src/main.cpp src/core/app.cpp src/ui/window.cpp)
-target_link_libraries(TileLauncherPro user32 gdi32 shell32)
+
+cmake_minimum_required(VERSION 3.22)
+project(TileLauncher LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_AUTOMOC ON)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+add_executable(TileLauncher
+ src/main.cpp
+ src/TileLauncher.cpp
+ src/Logger.cpp
+ src/AppData.cpp
+)
+target_link_libraries(TileLauncher PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Network)
