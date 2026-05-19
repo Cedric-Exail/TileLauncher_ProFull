@@ -1,13 +1,19 @@
-
+#pragma once
 #include <QFile>
+#include <QString>
+#include <QElapsedTimer>
 #include "AppData.h"
 class Logger{
 public:
  static Logger& instance();
  void open(const QString&,const QString&);
  void log(const QString&);
- void launch();
- AppData m_data;
+ void start();
+ void stop();
+ AppData& data(){return m_data;} 
 private:
- QFile m_log; QString m_dat;
+ QFile file;
+ QString datPath;
+ QElapsedTimer timer;
+ AppData m_data;
 };
