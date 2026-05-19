@@ -1,16 +1,54 @@
 name: Build & Release
-on: { push: { tags: ['v*'] }}
+
+on:
+  push:
+    tags:
+      - 'v*'
+
 jobs:
- build:
-  runs-on: windows-latest
-  steps:
-   - uses: actions/checkout@v4
-   - uses: jurplel/install-qt-action@v3
-     with: { version: 6.8.3, arch: win64_msvc2022_64 }
-   - run: cmake -B build -S .
-   - run: cmake --build build --config Release
-   - run: mkdir package && mkdir package/_internal && copy build\Release\TileLauncher.exe package\_internal\
-   - run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
-   - uses: softprops/action-gh-release@v2
-     with: { files: TileLauncher.zip }
-     env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: 6.8.3
+          arch: win64_msvc2022_64
+
+      - name: Set Qt Path
+        run: echo "CMAKE_PREFIX_PATH=$env:Qt6_DIR" >> $env:GITHUB_ENV
+
+      - name: Configure
+        run: cmake -B build -S . -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Deploy Qt (DLLs)
+        run: |
+          $qt = (Get-ChildItem -Path "C:\\Qt\\6.8.3" -Recurse -Filter windeployqt.exe | Select-Object -First 1).FullName
+          & $qt build/Release/TileLauncher.exe
+
+      - name: Package
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory package/_internal -Force
+          Copy-Item build/Release/TileLauncher.exe package/_internal/
+          Copy-Item build/Release/*.dll package/_internal/ -ErrorAction SilentlyContinue
+          Copy-Item build/Release/platforms package/_internal/platforms -Recurse -ErrorAction SilentlyContinue
+          Copy-Item _internal/tiles.ini package/_internal/
+
+      - name: Create Zip
+        run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: TileLauncher.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+``
