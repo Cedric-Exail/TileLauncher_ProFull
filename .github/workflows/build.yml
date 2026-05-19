@@ -38,7 +38,7 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      # ✅ Deploy Qt (robuste)
+      # ✅ Deploy Qt
       - name: Deploy Qt
         shell: powershell
         run: |
@@ -52,7 +52,7 @@ jobs:
           Write-Host "Using windeployqt:" $windeploy.FullName
           & $windeploy.FullName build/Release/TileLauncher.exe
 
-      # ✅ UI TEST + SCREENSHOT + PERFORMANCE
+      # ✅ UI TEST + PERFORMANCE + SCREENSHOT
       - name: UI Test & Screenshot
         shell: powershell
         run: |
@@ -99,19 +99,17 @@ jobs:
           $imgPath = "screenshot.png"
           $bmp.Save($imgPath, [System.Drawing.Imaging.ImageFormat]::Png)
 
-          # 📝 Report GitHub
-          @"
-## 🚀 UI Test Result
+          # ✅ GitHub summary (SAFE YAML)
+          $summary = "## 🚀 UI Test Result`n`n"
+          $summary += "✅ Application launched successfully`n"
+          $summary += "⏱️ Startup time: $startupTime ms`n`n"
+          $summary += "📸 Screenshot available in artifacts"
 
-✅ Application launched successfully  
-⏱️ Startup time: **$startupTime ms**
-
-📸 Screenshot available in artifacts
-"@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           Stop-Process -Id $proc.Id -Force
 
-      # ✅ Upload screenshot artifact
+      # ✅ Upload screenshot
       - name: Upload UI artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -133,11 +131,11 @@ jobs:
               Copy-Item _internal/tiles.ini package/_internal/
           }
 
-      # ✅ Create ZIP
+      # ✅ ZIP
       - name: Create ZIP
         run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
 
-      # ✅ Delete previous latest release
+      # ✅ Delete previous release
       - name: Delete previous latest release
         continue-on-error: true
         uses: dev-drprasad/delete-tag-and-release@v1.0
@@ -147,7 +145,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ✅ Create new latest release
+      # ✅ Create new release
       - name: Create latest release
         uses: softprops/action-gh-release@v2
         with:
