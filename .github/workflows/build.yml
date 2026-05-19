@@ -1,37 +1,16 @@
-
 name: Build & Release
-on:
-  push:
-    tags:
-      - 'v*'
+on: { push: { tags: ['v*'] }}
 jobs:
-  build:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: 6.8.3
-          arch: win64_msvc2022_64
-      - name: Configure
-        run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-      - name: Build
-        run: cmake --build build --config Release
-      - name: Deploy Qt
-        run: |
-          & "C:\Qt.8.3\msvc2022_64in\windeployqt.exe" build/Release/TileLauncher.exe
-      - name: Package
-        run: |
-          mkdir package
-          mkdir package/_internal
-          copy build\Release\TileLauncher.exe package\_internal          xcopy build\Release\*.dll package\_internal\ /Y
-          xcopy build\Release\platforms package\_internal\platforms /E /I
-      - name: Zip
-        run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
-      - name: Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: TileLauncher.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+ build:
+  runs-on: windows-latest
+  steps:
+   - uses: actions/checkout@v4
+   - uses: jurplel/install-qt-action@v3
+     with: { version: 6.8.3, arch: win64_msvc2022_64 }
+   - run: cmake -B build -S .
+   - run: cmake --build build --config Release
+   - run: mkdir package && mkdir package/_internal && copy build\Release\TileLauncher.exe package\_internal\
+   - run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
+   - uses: softprops/action-gh-release@v2
+     with: { files: TileLauncher.zip }
+     env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
