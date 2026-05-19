@@ -90,10 +90,10 @@ jobs:
           $bmp.Save($imgPath, [System.Drawing.Imaging.ImageFormat]::Png)
 
           # ✅ Summary GitHub
-          $summary = "## 🚀 UI Test Result`n`n"
-          $summary += "✅ Application launched successfully`n"
-          $summary += "⏱️ Startup time: $startupTime ms`n`n"
-          $summary += "📸 Screenshot available in artifacts"
+          $summary = "## UI Test Result`n`n"
+          $summary += "Application launched successfully`n"
+          $summary += "Startup time: $startupTime ms`n`n"
+          $summary += "Screenshot available in artifacts"
 
           $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
