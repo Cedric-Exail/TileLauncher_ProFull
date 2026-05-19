@@ -1,3 +1,2 @@
-# TileLauncher PRO FINAL
-
-Launcher C++ Qt6 moderne avec animations, logger avancé et mode PowerToy.
+# TileLauncher PRO
+Release auto GitHub activée
