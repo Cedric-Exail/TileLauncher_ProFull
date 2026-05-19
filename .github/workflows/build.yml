@@ -21,38 +21,28 @@ jobs:
           version: 6.8.3
           arch: win64_msvc2022_64
 
-      # ✅ Configure CMake
+      # ✅ Configure CMake (FIX ✅ Qt6_DIR)
       - name: Configure
-        shell: powershell
-        run: |
-          $qtPath = Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter Qt6Config.cmake | Select-Object -First 1
-          if (-not $qtPath) {
-              Write-Error "Qt6Config.cmake not found"
-              exit 1
-          }
-
-          $qtDir = Split-Path $qtPath.FullName
-          cmake -B build -S . -DCMAKE_PREFIX_PATH="$qtDir"
+        run: cmake -B build -S . -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
 
       # ✅ Build
       - name: Build
         run: cmake --build build --config Release
 
-      # ✅ Deploy Qt
+      # ✅ Deploy Qt (FIX ✅ path correct)
       - name: Deploy Qt
         shell: powershell
         run: |
-          $windeploy = Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter windeployqt.exe | Select-Object -First 1
+          $windeploy = Join-Path "${{ env.Qt6_DIR }}" "bin\\windeployqt.exe"
 
-          if (-not $windeploy) {
-              Write-Error "windeployqt.exe NOT FOUND"
+          if (!(Test-Path $windeploy)) {
+              Write-Error "windeployqt not found at $windeploy"
               exit 1
           }
 
-          Write-Host "Using windeployqt:" $windeploy.FullName
-          & $windeploy.FullName build/Release/TileLauncher.exe
+          & $windeploy build/Release/TileLauncher.exe
 
-      # ✅ UI TEST + PERFORMANCE + SCREENSHOT
+      # ✅ UI TEST + SCREENSHOT + PERFORMANCE
       - name: UI Test & Screenshot
         shell: powershell
         run: |
@@ -87,7 +77,7 @@ jobs:
 
           Write-Host "Startup Time: $startupTime ms"
 
-          # 📸 Screenshot
+          # Screenshot
           Add-Type -AssemblyName System.Windows.Forms
           Add-Type -AssemblyName System.Drawing
 
@@ -99,7 +89,7 @@ jobs:
           $imgPath = "screenshot.png"
           $bmp.Save($imgPath, [System.Drawing.Imaging.ImageFormat]::Png)
 
-          # ✅ GitHub summary (SAFE YAML)
+          # ✅ Summary GitHub
           $summary = "## 🚀 UI Test Result`n`n"
           $summary += "✅ Application launched successfully`n"
           $summary += "⏱️ Startup time: $startupTime ms`n`n"
@@ -116,7 +106,7 @@ jobs:
           name: UI-Test
           path: screenshot.png
 
-      # ✅ Package
+      # ✅ Packaging
       - name: Package
         shell: powershell
         run: |
@@ -135,7 +125,7 @@ jobs:
       - name: Create ZIP
         run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
 
-      # ✅ Delete previous release
+      # ✅ Delete previous release (latest)
       - name: Delete previous latest release
         continue-on-error: true
         uses: dev-drprasad/delete-tag-and-release@v1.0
@@ -145,7 +135,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ✅ Create new release
+      # ✅ Create new latest release
       - name: Create latest release
         uses: softprops/action-gh-release@v2
         with:
