@@ -9,12 +9,9 @@ jobs:
   build:
     runs-on: windows-latest
 
-    env:
-      BUILD_TYPE: Release
-
     steps:
       # ✅ Checkout
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       # ✅ Install Qt
@@ -24,21 +21,14 @@ jobs:
           version: 6.8.3
           arch: win64_msvc2022_64
 
-      # ✅ Debug Qt installation
-      - name: Debug Qt location
-        shell: powershell
-        run: |
-          Write-Host "Searching Qt..."
-          Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter qmake.exe | Select-Object -First 5
-
       # ✅ Configure CMake
       - name: Configure
         shell: powershell
         run: |
           $qtPath = Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter Qt6Config.cmake | Select-Object -First 1
           if (-not $qtPath) {
-            Write-Error "Qt6Config.cmake not found"
-            exit 1
+              Write-Error "Qt6Config.cmake not found"
+              exit 1
           }
 
           $qtDir = Split-Path $qtPath.FullName
@@ -55,14 +45,80 @@ jobs:
           $windeploy = Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter windeployqt.exe | Select-Object -First 1
 
           if (-not $windeploy) {
-            Write-Error "windeployqt.exe NOT FOUND"
-            exit 1
+              Write-Error "windeployqt.exe NOT FOUND"
+              exit 1
           }
 
           Write-Host "Using windeployqt:" $windeploy.FullName
           & $windeploy.FullName build/Release/TileLauncher.exe
 
-      # ✅ Package clean
+      # ✅ UI TEST + SCREENSHOT + PERFORMANCE
+      - name: UI Test & Screenshot
+        shell: powershell
+        run: |
+          $exe = "build/Release/TileLauncher.exe"
+
+          if (!(Test-Path $exe)) {
+              Write-Error "Executable not found"
+              exit 1
+          }
+
+          $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+          $proc = Start-Process $exe -PassThru
+
+          $shown = $false
+          for ($i=0; $i -lt 50; $i++) {
+              $proc.Refresh()
+              if ($proc.MainWindowHandle -ne 0) {
+                  $shown = $true
+                  break
+              }
+              Start-Sleep -Milliseconds 100
+          }
+
+          $sw.Stop()
+          $startupTime = $sw.ElapsedMilliseconds
+
+          if (-not $shown) {
+              Write-Error "App window not visible"
+              exit 1
+          }
+
+          Write-Host "Startup Time: $startupTime ms"
+
+          # 📸 Screenshot
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type -AssemblyName System.Drawing
+
+          $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+          $graphics = [System.Drawing.Graphics]::FromImage($bmp)
+          $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+
+          $imgPath = "screenshot.png"
+          $bmp.Save($imgPath, [System.Drawing.Imaging.ImageFormat]::Png)
+
+          # 📝 Report GitHub
+          @"
+## 🚀 UI Test Result
+
+✅ Application launched successfully  
+⏱️ Startup time: **$startupTime ms**
+
+📸 Screenshot available in artifacts
+"@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+          Stop-Process -Id $proc.Id -Force
+
+      # ✅ Upload screenshot artifact
+      - name: Upload UI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: UI-Test
+          path: screenshot.png
+
+      # ✅ Package
       - name: Package
         shell: powershell
         run: |
@@ -70,19 +126,18 @@ jobs:
           New-Item -ItemType Directory -Force package/_internal | Out-Null
 
           Copy-Item build/Release/TileLauncher.exe package/_internal/
-
           Copy-Item build/Release/*.dll package/_internal/ -ErrorAction SilentlyContinue
           Copy-Item build/Release/platforms package/_internal/platforms -Recurse -ErrorAction SilentlyContinue
 
           if (Test-Path _internal/tiles.ini) {
-            Copy-Item _internal/tiles.ini package/_internal/
+              Copy-Item _internal/tiles.ini package/_internal/
           }
 
-      # ✅ Zip artifact
+      # ✅ Create ZIP
       - name: Create ZIP
         run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
 
-      # ✅ Delete old release (safe)
+      # ✅ Delete previous latest release
       - name: Delete previous latest release
         continue-on-error: true
         uses: dev-drprasad/delete-tag-and-release@v1.0
@@ -102,8 +157,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ✅ Artifact backup (important)
-      - name: Upload artifact backup
+      # ✅ Backup artifact
+      - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
           name: TileLauncher
