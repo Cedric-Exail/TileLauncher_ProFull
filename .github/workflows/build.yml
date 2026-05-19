@@ -1,4 +1,4 @@
-name: Build & Release
+name: Build & Release (Production)
 
 on:
   push:
@@ -9,40 +9,102 @@ jobs:
   build:
     runs-on: windows-latest
 
-    steps:
-      - uses: actions/checkout@v4
+    env:
+      BUILD_TYPE: Release
 
+    steps:
+      # ✅ Checkout
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # ✅ Install Qt
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: 6.8.3
           arch: win64_msvc2022_64
 
-      - name: Configure
-        run: cmake -B build -S . -DCMAKE_PREFIX_PATH="C:\\Qt\\6.8.3\\msvc2022_64"
+      # ✅ Debug Qt installation
+      - name: Debug Qt location
+        shell: powershell
+        run: |
+          Write-Host "Searching Qt..."
+          Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter qmake.exe | Select-Object -First 5
 
+      # ✅ Configure CMake
+      - name: Configure
+        shell: powershell
+        run: |
+          $qtPath = Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter Qt6Config.cmake | Select-Object -First 1
+          if (-not $qtPath) {
+            Write-Error "Qt6Config.cmake not found"
+            exit 1
+          }
+
+          $qtDir = Split-Path $qtPath.FullName
+          cmake -B build -S . -DCMAKE_PREFIX_PATH="$qtDir"
+
+      # ✅ Build
       - name: Build
         run: cmake --build build --config Release
 
+      # ✅ Deploy Qt (robuste)
       - name: Deploy Qt
+        shell: powershell
         run: |
-          & "C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe" build/Release/TileLauncher.exe
+          $windeploy = Get-ChildItem $Env:RUNNER_TOOL_CACHE -Recurse -Filter windeployqt.exe | Select-Object -First 1
 
+          if (-not $windeploy) {
+            Write-Error "windeployqt.exe NOT FOUND"
+            exit 1
+          }
+
+          Write-Host "Using windeployqt:" $windeploy.FullName
+          & $windeploy.FullName build/Release/TileLauncher.exe
+
+      # ✅ Package clean
       - name: Package
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force package/_internal
+          Remove-Item -Recurse -Force package -ErrorAction Ignore
+          New-Item -ItemType Directory -Force package/_internal | Out-Null
+
           Copy-Item build/Release/TileLauncher.exe package/_internal/
+
           Copy-Item build/Release/*.dll package/_internal/ -ErrorAction SilentlyContinue
           Copy-Item build/Release/platforms package/_internal/platforms -Recurse -ErrorAction SilentlyContinue
-          Copy-Item _internal/tiles.ini package/_internal/
 
-      - name: Zip
+          if (Test-Path _internal/tiles.ini) {
+            Copy-Item _internal/tiles.ini package/_internal/
+          }
+
+      # ✅ Zip artifact
+      - name: Create ZIP
         run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
 
-      - name: Release
+      # ✅ Delete old release (safe)
+      - name: Delete previous latest release
+        continue-on-error: true
+        uses: dev-drprasad/delete-tag-and-release@v1.0
+        with:
+          delete_release: true
+          tag_name: latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ✅ Create new latest release
+      - name: Create latest release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: latest
+          name: Latest Build
           files: TileLauncher.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ✅ Artifact backup (important)
+      - name: Upload artifact backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: TileLauncher
+          path: TileLauncher.zip
