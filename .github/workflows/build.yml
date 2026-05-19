@@ -10,8 +10,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
@@ -19,36 +18,31 @@ jobs:
           version: 6.8.3
           arch: win64_msvc2022_64
 
-      - name: Set Qt Path
-        run: echo "CMAKE_PREFIX_PATH=$env:Qt6_DIR" >> $env:GITHUB_ENV
-
       - name: Configure
-        run: cmake -B build -S . -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+        run: cmake -B build -S . -DCMAKE_PREFIX_PATH="C:\\Qt\\6.8.3\\msvc2022_64"
 
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Deploy Qt (DLLs)
+      - name: Deploy Qt
         run: |
-          $qt = (Get-ChildItem -Path "C:\\Qt\\6.8.3" -Recurse -Filter windeployqt.exe | Select-Object -First 1).FullName
-          & $qt build/Release/TileLauncher.exe
+          & "C:\Qt\6.8.3\msvc2022_64\bin\windeployqt.exe" build/Release/TileLauncher.exe
 
       - name: Package
         shell: powershell
         run: |
-          New-Item -ItemType Directory package/_internal -Force
+          New-Item -ItemType Directory -Force package/_internal
           Copy-Item build/Release/TileLauncher.exe package/_internal/
           Copy-Item build/Release/*.dll package/_internal/ -ErrorAction SilentlyContinue
           Copy-Item build/Release/platforms package/_internal/platforms -Recurse -ErrorAction SilentlyContinue
           Copy-Item _internal/tiles.ini package/_internal/
 
-      - name: Create Zip
+      - name: Zip
         run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
 
-      - name: Create Release
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
           files: TileLauncher.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-``
