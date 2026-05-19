@@ -1,2 +1,1 @@
-# TileLauncher PRO
-Release auto GitHub activée
+# FULL ULTRA WITH LOGGER
