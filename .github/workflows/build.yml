@@ -13,21 +13,26 @@ jobs:
     runs-on: windows-latest
 
     steps:
+      # ✅ Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ✅ Install Qt
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
           version: 6.8.3
           arch: win64_msvc2022_64
 
+      # ✅ Configure CMake
       - name: Configure
         run: cmake -B build -S . -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
 
+      # ✅ Build
       - name: Build
         run: cmake --build build --config Release
 
+      # ✅ Deploy Qt
       - name: Deploy Qt
         shell: powershell
         run: |
@@ -40,6 +45,7 @@ jobs:
 
           & $windeploy build/Release/TileLauncher.exe
 
+      # ✅ UI TEST + SCREENSHOT + PERFORMANCE
       - name: UI Test & Screenshot
         shell: powershell
         run: |
@@ -73,6 +79,7 @@ jobs:
 
           Write-Host "Startup Time: $startupTime ms"
 
+          # Screenshot
           Add-Type -AssemblyName System.Windows.Forms
           Add-Type -AssemblyName System.Drawing
 
@@ -84,21 +91,24 @@ jobs:
           $imgPath = "screenshot.png"
           $bmp.Save($imgPath, [System.Drawing.Imaging.ImageFormat]::Png)
 
+          # Summary (ASCII safe)
           $summary = "## UI Test Result`n`n"
           $summary += "Application launched successfully`n"
-          $summary += "Startup time: $startupTime ms`n"
+          $summary += "Startup time: $startupTime ms`n`n"
           $summary += "Screenshot available in artifacts"
 
           $summary | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           Stop-Process -Id $proc.Id -Force
 
+      # ✅ Upload screenshot
       - name: Upload UI artifacts
         uses: actions/upload-artifact@v4
         with:
           name: UI-Test
           path: screenshot.png
 
+      # ✅ Package (FIX PROPRE)
       - name: Package
         shell: powershell
         run: |
@@ -113,9 +123,19 @@ jobs:
               Copy-Item _internal/tiles.ini package/_internal/
           }
 
-      - name: Create ZIP
-        run: Compress-Archive -Path package\* -DestinationPath TileLauncher.zip
+          if (Test-Path TileLauncher.bat) {
+              Copy-Item TileLauncher.bat package/
+          }
 
+      # ✅ ZIP (SANS imbrication)
+      - name: Create ZIP
+        shell: powershell
+        run: |
+          Remove-Item TileLauncher.zip -ErrorAction Ignore
+          cd package
+          Compress-Archive -Path * -DestinationPath "../TileLauncher.zip"
+
+      # ✅ Delete previous release
       - name: Delete previous latest release
         continue-on-error: true
         uses: dev-drprasad/delete-tag-and-release@v1.0
@@ -124,6 +144,7 @@ jobs:
           tag_name: latest
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
+      # ✅ Create new release
       - name: Create latest release
         uses: softprops/action-gh-release@v2
         with:
@@ -133,6 +154,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # ✅ Backup artifact
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
         with:
